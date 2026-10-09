@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GEO Cyber Threat Detection System</title>
+<style>
+:root{--bg:#070b14;--card:rgba(255,255,255,.05);--bd:rgba(120,200,255,.14);--tx:#e6edf7;--mu:#8a9bb5;--ac:#22d3ee;--g:#22c55e;--y:#eab308;--o:#f97316;--r:#ef4444;--c:#e11d48;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(900px 500px at 80% -10%,#0e2a45 0,transparent 60%),var(--bg);color:var(--tx);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;gap:4px;align-items:center;padding:10px 14px;background:rgba(7,11,20,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--bd);overflow-x:auto}
+nav b{color:var(--ac);white-space:nowrap;margin-right:10px;letter-spacing:.5px}
+nav a{color:var(--mu);text-decoration:none;padding:6px 10px;border-radius:8px;white-space:nowrap;cursor:pointer}
+nav a.on,nav a:hover{background:var(--card);color:var(--tx)}
+main{max-width:1100px;margin:0 auto;padding:20px 14px 60px;animation:f .35s}
+@keyframes f{from{opacity:0;transform:translateY(6px)}}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;backdrop-filter:blur(8px)}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.kpi b{font-size:26px;display:block}.kpi span{color:var(--mu);font-size:12px}
+h1{font-size:clamp(26px,5vw,42px);margin:6px 0}h2{margin:0 0 12px;font-size:18px}
+.mu{color:var(--mu)}.hero{padding:30px 0}
+.btn{background:linear-gradient(135deg,#0891b2,#22d3ee);color:#021018;border:0;border-radius:10px;padding:10px 16px;font-weight:700;cursor:pointer;margin:4px 6px 4px 0}
+.btn.s{background:var(--card);color:var(--tx);border:1px solid var(--bd)}
+input,textarea,select{width:100%;background:#0b1424;color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:10px;font:inherit}
+textarea{min-height:150px;font-family:ui-monospace,monospace;font-size:12px}
+.drop{border:2px dashed var(--bd);border-radius:14px;padding:30px;text-align:center;color:var(--mu)}
+.pill{display:inline-block;padding:2px 10px;border-radius:99px;font-weight:700;font-size:12px}
+.sc{font-size:44px;font-weight:800}
+.bar{height:8px;border-radius:9px;background:#14223a;overflow:hidden}.bar i{display:block;height:100%}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bd);font-size:13px}
+.wrap{overflow-x:auto}
+code,.mono{font-family:ui-monospace,monospace;font-size:12px;word-break:break-all}
+ul{padding-left:18px;margin:6px 0}
+.hide{display:none}
+</style></head><body>
+<nav id="nav"><b>🛡 GEO CTDS</b></nav>
+<main id="app"></main>
+<script>
+const PAGES=["Dashboard","File Scanner","Email Scanner","URL Scanner","Website Scanner","Ransomware","Threat Intel","History","Alerts","Settings"];
+const LV=[[20,"SAFE","🟢","var(--g)"],[40,"LOW RISK","🟡","var(--y)"],[60,"SUSPICIOUS","🟠","var(--o)"],[80,"HIGH RISK","🔴","var(--r)"],[100,"CRITICAL","⛔","var(--c)"]];
+const lvl=s=>LV.find(l=>s<=l[0])||LV[4];
+let W={hash:30,behavior:25,phish:20,anomaly:10,domain:10,sig:5};
+const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let hist=store.get("geo_hist",[]);W=store.get("geo_w",W);
+const save=()=>store.set("geo_hist",hist);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const $=id=>document.getElementById(id);
+const pill=s=>{const l=lvl(s);return `<span class="pill" style="background:${l[3]}22;color:${l[3]}">${l[2]} ${l[1]}</span>`};
+const IOC={hashes:["44d88612fea8a8f36de82e1278abb02f","275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f"],domains:["secure-login-verify.xyz","paypa1-support.com"]};
+const SHORT=["bit.ly","tinyurl.com","t.co","goo.gl","is.gd","cutt.ly"],TLD=["xyz","top","tk","ml","ga","cf","click","work","zip","support"];
+function score(sig){let t=0;for(const k in sig)t+=Math.min(1,sig[k])*W[k];return Math.round(Math.min(100,t))}
+function report(type,target,sig,why,extra){const s=score(sig),l=lvl(s);const r={id:"GEO-"+Date.now().toString(36).toUpperCase(),date:new Date().toISOString(),type,target,score:s,cls:l[1],why,extra:extra||{},conf:Math.min(99,55+why.length*6)};hist.unshift(r);hist=hist.slice(0,200);save();return r}
+function show(r){const l=lvl(r.score);return `<div class="card"><div class="grid g2"><div><div class="mu">Overall threat score</div><div class="sc" style="color:${l[3]}">${r.score}/100</div>${pill(r.score)}<div class="bar" style="margin-top:10px"><i style="width:${r.score}%;background:${l[3]}"></i></div><p class="mu">Confidence ${r.conf}% · ID <code>${r.id}</code><br>${new Date(r.date).toLocaleString()}</p></div><div><h2>Detection reasons</h2><ul>${r.why.length?r.why.map(w=>`<li>${esc(w)}</li>`).join(""):"<li>No suspicious indicators found</li>"}</ul><p><b>Recommended:</b> ${r.score>80?"Isolate the device/block the indicator and begin incident response.":r.score>40?"Do not open or click. Verify with the sender/owner and escalate to security.":"No action required; continue normal monitoring."}</p></div></div>
+<details style="margin-top:10px"><summary>View technical details</summary><pre class="mono" style="white-space:pre-wrap">${esc(JSON.stringify(r.extra,null,2))}</pre></details>
+<button class="btn" onclick="dl('${r.id}')">Download Report</button><button class="btn s" onclick="go(location.hash.slice(1))">Scan Again</button></div>`}
+window.dl=id=>{const r=hist.find(x=>x.id===id);if(!r)return;const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(r,null,2)],{type:"application/json"}));a.download=id+".json";a.click()};
+async function digest(alg,buf){return[...new Uint8Array(await crypto.subtle.digest(alg,buf))].map(b=>b.toString(16).padStart(2,"0")).join("")}
+function entropy(u){const c=new Array(256).fill(0);u.forEach(b=>c[b]++);let e=0;c.forEach(n=>{if(n){const p=n/u.length;e-=p*Math.log2(p)}});return e}
+function md5(){return "n/a (needs backend)"}
+const STR=[[/vssadmin\s+delete\s+shadows|wmic\s+shadowcopy\s+delete/i,"Shadow-copy deletion indicator","behavior"],[/your files (have been|are) encrypted|decrypt.*bitcoin|ransom/i,"Ransom-note language","behavior"],[/CurrentVersion\\Run|schtasks\s+\/create/i,"Persistence indicator","behavior"],[/powershell.{0,20}(-enc|-nop|downloadstring)/i,"Obfuscated PowerShell","behavior"],[/mimikatz|lsass|sekurlsa/i,"Credential-access indicator","behavior"],[/eval\(|unescape\(|fromCharCode/i,"Obfuscated script functions","anomaly"],[/AutoOpen|Document_Open|VBA|vbaProject/i,"Macro indicator","anomaly"],[/\.onion\b/i,"Tor/.onion destination","behavior"]];
+async function scanFile(f){const buf=await f.arrayBuffer(),u=new Uint8Array(buf);const sha=await digest("SHA-256",buf),sha1=await digest("SHA-1",buf),e=entropy(u.slice(0,2e6));
+const txt=new TextDecoder("latin1").decode(u.slice(0,2e6));const sig={},why=[];
+const hit=IOC.hashes.includes(sha)||IOC.hashes.includes(sha1);if(hit){sig.hash=1;why.push("Hash matches known-malicious IOC")}
+STR.forEach(([re,m,k])=>{if(re.test(txt)){sig[k]=Math.min(1,(sig[k]||0)+.5);why.push(m)}});
+const mz=u[0]===0x4d&&u[1]===0x5a,elf=u[0]===0x7f&&u[1]===0x45,zip=u[0]===0x50&&u[1]===0x4b;
+if(mz){sig.anomaly=(sig.anomaly||0)+.4;why.push("Windows PE executable (MZ header)")}
+if(elf)why.push("ELF executable");
+if(e>7.2){sig.anomaly=(sig.anomaly||0)+.6;why.push("High entropy "+e.toFixed(2)+" (packed/encrypted?)")}
+if(/\.(exe|dll|js|vbs|scr|bat)$/i.test(f.name)&&/\.(pdf|docx?|jpg|png)\./i.test(f.name)){sig.anomaly=1;why.push("Double extension")}
+const urls=[...new Set(txt.match(/https?:\/\/[\w.\-\/?=&%#]{4,80}/g)||[])].slice(0,10);
+if(urls.some(x=>IOC.domains.some(d=>x.includes(d)))){sig.domain=1;why.push("Embedded URL matches malicious domain")}
+return report("File",f.name,sig,why,{size:f.size,mime:f.type||"unknown",sha256:sha,sha1,md5:md5(),entropy:+e.toFixed(3),urls,magic:mz?"PE":elf?"ELF":zip?"ZIP/OOXML":"other",note:"Static analysis only; file was never executed or uploaded."})}
+function scanUrl(raw){let u;try{u=new URL(/^https?:/i.test(raw)?raw:"http://"+raw)}catch(e){return null}
+const h=u.hostname.toLowerCase(),sig={},why=[];
+if(u.protocol!=="https:"){sig.phish=(sig.phish||0)+.3;why.push("Not using HTTPS")}
+if(/^\d+\.\d+\.\d+\.\d+$/.test(h)){sig.phish=(sig.phish||0)+.5;why.push("IP-based URL")}
+if(SHORT.includes(h)){sig.domain=.5;why.push("URL shortener hides destination")}
+if(h.startsWith("xn--")||/[^\x00-\x7f]/.test(h)){sig.phish=(sig.phish||0)+.6;why.push("Punycode/homograph domain")}
+if(TLD.includes(h.split(".").pop())){sig.domain=(sig.domain||0)+.5;why.push("High-abuse TLD")}
+if(h.split(".").length>4){sig.phish=(sig.phish||0)+.3;why.push("Excessive subdomains")}
+if(/(login|verify|secure|account|update|wallet|support)/.test(h)){sig.phish=(sig.phish||0)+.4;why.push("Credential-lure keywords in domain")}
+if(/paypa1|g00gle|micros0ft|amaz0n|faceb00k/.test(h)){sig.phish=1;why.push("Look-alike of a known brand")}
+if(u.href.includes("@")){sig.phish=(sig.phish||0)+.4;why.push("Credentials-in-URL trick (@)")}
+if(/(redirect|url|next)=https?/i.test(u.search)){sig.anomaly=.6;why.push("Open-redirect style parameter")}
+if(IOC.domains.some(d=>h===d||h.endsWith("."+d))){sig.hash=1;sig.domain=1;why.push("Domain on local IOC blocklist")}
+return{u,h,sig,why}}
+function scanEmail(t){const sig={},why=[];const g=n=>(t.match(new RegExp("^"+n+":\\s*(.*)$","im"))||[])[1]||"";
+const from=g("From"),rt=g("Reply-To"),subj=g("Subject"),auth=g("Authentication-Results")+" "+g("Received-SPF");
+const dom=s=>((s.match(/@([\w.\-]+)/)||[])[1]||"").toLowerCase();
+if(rt&&dom(rt)&&dom(rt)!==dom(from)){sig.phish=(sig.phish||0)+.5;why.push("Reply-To domain differs from sender")}
+if(/spf=(fail|softfail)/i.test(auth)){sig.phish=(sig.phish||0)+.4;why.push("SPF failed")}
+if(/dkim=fail/i.test(auth)){sig.phish=(sig.phish||0)+.3;why.push("DKIM failed")}
+if(/dmarc=fail/i.test(auth)){sig.phish=(sig.phish||0)+.4;why.push("DMARC failed")}
+if(/urgent|immediately|within 24|suspended|verify your|act now|final notice|password expires/i.test(t)){sig.phish=(sig.phish||0)+.5;why.push("Urgency / social-engineering language")}
+if(/ceo|payroll|gift card|wire transfer|invoice attached/i.test(t)){sig.behavior=.4;why.push("Impersonation / BEC indicators")}
+if(/filename=.*\.(exe|js|scr|vbs|iso|bat|docm|xlsm)/i.test(t)){sig.hash=.6;sig.anomaly=.8;why.push("Dangerous attachment type")}
+const urls=[...new Set(t.match(/https?:\/\/[^\s"'<>]+/g)||[])].slice(0,15);let bad=0;
+urls.forEach(x=>{const r=scanUrl(x);if(r&&score(r.sig)>=40){bad++}});
+if(bad){sig.domain=Math.min(1,bad/2);sig.phish=(sig.phish||0)+.4;why.push(bad+" suspicious embedded URL(s)")}
+return report("Email",subj||"(no subject)",sig,why,{from,replyTo:rt,urls})}
+const T={};
+T.Dashboard=()=>{const n=k=>hist.filter(h=>h.type===k&&h.score>40).length;const sev=LV.map(l=>hist.filter(h=>lvl(h.score)===l).length),mx=Math.max(1,...sev);
+const days=[...Array(7)].map((_,i)=>{const d=new Date(Date.now()-(6-i)*864e5).toDateString();return hist.filter(h=>new Date(h.date).toDateString()===d).length});const dm=Math.max(1,...days);
+const pts=days.map((v,i)=>`${i*50+10},${90-v/dm*80}`).join(" ");
+return `<section class="hero"><div class="mu mono">AI-POWERED THREAT DETECTION</div><h1>Detect Threats Before They Become Incidents.</h1><p class="mu" style="max-width:640px">Safely analyze suspicious files, emails, URLs, and websites with intelligent threat detection and security risk assessment.</p>
+<button class="btn" onclick="go('File Scanner')">Scan a File</button><button class="btn" onclick="go('URL Scanner')">Check a URL</button><button class="btn" onclick="go('Email Scanner')">Analyze an Email</button></section>
+<div class="grid">${[["Items scanned",hist.length],["Malware",n("File")],["Phishing URLs",n("URL")],["Suspicious emails",n("Email")],["Safe",hist.filter(h=>h.score<=20).length],["Critical",hist.filter(h=>h.score>80).length]].map(k=>`<div class="card kpi"><b>${k[1]}</b><span>${k[0]}</span></div>`).join("")}</div>
+<div class="grid g2" style="margin-top:12px"><div class="card"><h2>Threat severity</h2>${LV.map((l,i)=>`<div style="margin:8px 0">${l[2]} ${l[1]} · ${sev[i]}<div class="bar"><i style="width:${sev[i]/mx*100}%;background:${l[3]}"></i></div></div>`).join("")}</div>
+<div class="card"><h2>Detection activity (7 days)</h2><svg viewBox="0 0 320 100" width="100%"><polyline fill="none" stroke="#22d3ee" stroke-width="2.5" points="${pts}"/></svg></div></div>
+<div class="card" style="margin-top:12px"><h2>Recent scans</h2>${tbl(hist.slice(0,5))}</div>`};
+const tbl=a=>a.length?`<div class="wrap"><table><tr><th>Date</th><th>Type</th><th>Target</th><th>Risk</th><th>Status</th><th></th></tr>${a.map(r=>`<tr><td>${new Date(r.date).toLocaleDateString()}</td><td>${r.type}</td><td class="mono">${esc(r.target).slice(0,40)}</td><td>${r.score}</td><td>${pill(r.score)}</td><td><a href="#" onclick="view('${r.id}');return false">View</a></td></tr>`).join("")}</table></div>`:`<p class="mu">No scans yet. Run one from the menu.</p>`;
+window.view=id=>{const r=hist.find(x=>x.id===id);$("app").innerHTML=`<h2>Report ${r.id}</h2>${show(r)}`};
+T["File Scanner"]=()=>`<h2>File Scanner</h2><div class="drop"><p>Select a file to analyze. Hashing, entropy and string checks run locally in your browser; nothing is executed or uploaded.</p><input type="file" id="f"></div><div id="out" style="margin-top:12px"></div>`;
+T["Email Scanner"]=()=>`<h2>Email Analyzer</h2><textarea id="e" placeholder="Paste raw email with headers, or load a .eml file"></textarea><input type="file" id="ef" accept=".eml,.txt" style="margin-top:8px"><button class="btn" id="eb" style="margin-top:8px">Analyze Email</button><div id="out" style="margin-top:12px"></div>`;
+T["URL Scanner"]=()=>`<h2>URL Scanner</h2><p class="mu">Analysis is structural only; the URL is never opened.</p><input id="u" placeholder="https://example.com"><button class="btn" id="ub" style="margin-top:8px">Scan URL</button><div id="out" style="margin-top:12px"></div>`;
+T["Website Scanner"]=()=>`<h2>Website Security Check</h2><p class="mu">Enter a domain or URL. Header, TLS and script checks need the server-side worker; this build gives domain-level verdicts.</p><input id="u" placeholder="example.com"><button class="btn" id="wb" style="margin-top:8px">Check Website</button><div id="out" style="margin-top:12px"></div>`;
+T.Ransomware=()=>`<h2>Ransomware Detection</h2><p class="mu">Upload a suspicious file, script or ransom-note text file. Indicators checked: shadow-copy deletion, ransom-note language, persistence, credential access, .onion destinations, high entropy.</p><div class="drop"><input type="file" id="f" data-rw="1"></div><div id="out" style="margin-top:12px"></div>`;
+T["Threat Intel"]=()=>`<h2>Threat Intelligence</h2><p class="mu">Local IOC list below. Reputation APIs (hash, URL, IP, domain) plug in at the backend so keys never reach the browser.</p><div class="card"><b>Hash IOCs</b><ul>${IOC.hashes.map(h=>`<li class="mono">${h}</li>`).join("")}</ul><b>Domain IOCs</b><ul>${IOC.domains.map(h=>`<li class="mono">${h}</li>`).join("")}</ul></div>`;
+T.History=()=>`<h2>Scan History</h2><div class="grid"><input id="q" placeholder="Search target…"><select id="ty"><option value="">All types</option><option>File</option><option>URL</option><option>Email</option><option>Website</option></select><button class="btn s" id="clr">Delete all</button><button class="btn s" id="ex">Export JSON</button></div><div class="card" id="ht" style="margin-top:12px"></div>`;
+T.Alerts=()=>`<h2>Security Alerts</h2><button class="btn s" id="np">Enable browser notifications</button><div class="card" style="margin-top:12px">${hist.filter(h=>h.score>60).slice(0,20).map(h=>`<p>${h.score>80?"⛔ <b>CRITICAL THREAT DETECTED</b>":"🔴 <b>"+(h.type==="URL"?"PHISHING":h.type==="File"?"MALWARE":"THREAT")+" DETECTED"}</b> — ${esc(h.target).slice(0,60)} <span class="mu">(${h.score}/100)</span></p>`).join("")||'<p class="mu">No high-risk alerts.</p>'}</div>`;
+T.Settings=()=>`<h2>Risk Scoring Weights</h2><div class="card">${Object.keys(W).map(k=>`<p>${k} <b id="v${k}">${W[k]}</b><input type="range" min="0" max="50" value="${W[k]}" data-k="${k}"></p>`).join("")}<p class="mu">Weights are the maximum points each signal can add (total capped at 100). Bands: 0–20 Safe, 21–40 Low, 41–60 Suspicious, 61–80 High, 81–100 Critical.</p></div>`;
+function alertIf(r){if(r.score>60&&window.Notification&&Notification.permission==="granted")new Notification(r.score>80?"CRITICAL THREAT DETECTED":"Threat detected",{body:r.target})}
+function wire(p){const o=$("out");
+if(p==="File Scanner"||p==="Ransomware")$("f").onchange=async e=>{const f=e.target.files[0];if(!f)return;o.innerHTML="Analyzing…";const r=await scanFile(f);alertIf(r);o.innerHTML=show(r)};
+if(p==="Email Scanner"){$("ef").onchange=async e=>{$("e").value=await e.target.files[0].text()};$("eb").onclick=()=>{const r=scanEmail($("e").value);alertIf(r);o.innerHTML=show(r)}}
+if(p==="URL Scanner"||p==="Website Scanner")$(p==="URL Scanner"?"ub":"wb").onclick=()=>{const x=scanUrl($("u").value.trim());if(!x){o.innerHTML="Invalid URL";return}const r=report(p==="URL Scanner"?"URL":"Website",x.u.href,x.sig,x.why,{host:x.h,protocol:x.u.protocol});alertIf(r);o.innerHTML=(p==="Website Scanner"?`<h2>${r.score>60?"MALICIOUS":r.score>20?"SUSPICIOUS":"SAFE"}</h2>`:"")+show(r)};
+if(p==="History"){const draw=()=>{const q=$("q").value.toLowerCase(),t=$("ty").value;$("ht").innerHTML=tbl(hist.filter(h=>(!t||h.type===t)&&h.target.toLowerCase().includes(q)))};$("q").oninput=draw;$("ty").onchange=draw;$("clr").onclick=()=>{if(confirm("Delete all scan records?")){hist=[];save();draw()}};$("ex").onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(hist,null,2)],{type:"application/json"}));a.download="geo-scan-history.json";a.click()};draw()}
+if(p==="Alerts")$("np").onclick=()=>window.Notification&&Notification.requestPermission();
+if(p==="Settings")document.querySelectorAll("input[type=range]").forEach(i=>i.oninput=()=>{W[i.dataset.k]=+i.value;$("v"+i.dataset.k).textContent=i.value;store.set("geo_w",W)})}
+function go(p){location.hash=p}
+function render(){const p=decodeURIComponent(location.hash.slice(1))||"Dashboard";const k=T[p]?p:"Dashboard";
+$("nav").innerHTML="<b>🛡 GEO CTDS</b>"+PAGES.map(x=>`<a class="${x===k?"on":""}" onclick="go('${x}')">${x}</a>`).join("");
+$("app").innerHTML=T[k]();wire(k)}
+addEventListener("hashchange",render);render();
+</script></body></html>
